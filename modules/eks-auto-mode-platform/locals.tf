@@ -56,4 +56,6 @@ locals {
   zonal_shift_config = var.enable_zonal_shift ? {
     enabled = true
   } : null
+
+  http_api_authorization_type = var.http_api_jwt_authorizer != null ? "JWT" : var.http_api_authorization_type
 }

@@ -50,11 +50,31 @@ output "private_subnet_ids" {
 }
 
 output "public_subnet_ids" {
-  description = "Public subnet IDs for internet-facing load balancers."
+  description = "Public subnet IDs for NAT gateways and approved edge resources."
   value       = module.vpc.public_subnets
 }
 
 output "vpc_flow_log_id" {
   description = "VPC flow log ID."
   value       = try(aws_flow_log.this[0].id, null)
+}
+
+output "http_api_id" {
+  description = "API Gateway HTTP API ID."
+  value       = try(aws_apigatewayv2_api.http[0].id, null)
+}
+
+output "http_api_endpoint" {
+  description = "API Gateway HTTP API endpoint."
+  value       = try(aws_apigatewayv2_api.http[0].api_endpoint, null)
+}
+
+output "http_api_vpc_link_id" {
+  description = "API Gateway VPC Link ID."
+  value       = try(aws_apigatewayv2_vpc_link.http[0].id, null)
+}
+
+output "api_gateway_vpc_link_security_group_id" {
+  description = "Security group ID used by the API Gateway VPC Link ENIs."
+  value       = try(aws_security_group.api_gateway_vpc_link[0].id, null)
 }

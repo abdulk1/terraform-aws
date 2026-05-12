@@ -5,7 +5,7 @@ This repository provisions an AWS foundation for an enterprise web application a
 It creates:
 
 - A dedicated VPC per environment across 3 Availability Zones.
-- Public subnets for internet-facing load balancers.
+- Public subnets for NAT gateways and controlled edge resources.
 - Private subnets for EKS Auto Mode nodes.
 - NAT egress for private subnets, with one NAT gateway in non-prod and one per AZ in prod.
 - Amazon EKS with Auto Mode compute enabled.
@@ -14,6 +14,8 @@ It creates:
 - KMS-backed Kubernetes secret encryption.
 - EKS control plane logs.
 - VPC flow logs.
+- Private/internal ALB discovery for Kubernetes ingress.
+- Optional API Gateway HTTP API with VPC Link private integration to an internal ALB listener.
 - IRSA OIDC provider for workloads that still use IAM roles for service accounts.
 
 ## Repository Layout
@@ -24,6 +26,10 @@ It creates:
 │   ├── dev/
 │   ├── test/
 │   └── prod/
+├── docs/
+├── examples/
+│   └── kubernetes/
+├── mcp/
 ├── modules/
 │   └── eks-auto-mode-platform/
 ├── Makefile
@@ -43,8 +49,45 @@ References:
 - [AWS EKS Auto Mode cluster IAM role](https://docs.aws.amazon.com/eks/latest/userguide/auto-cluster-iam-role.html)
 - [AWS EKS Auto Mode node IAM role](https://docs.aws.amazon.com/eks/latest/userguide/auto-create-node-role.html)
 - [AWS built-in Auto Mode node pools](https://docs.aws.amazon.com/eks/latest/userguide/set-builtin-node-pools.html)
+- [AWS EKS Auto Mode ALB IngressClassParams](https://docs.aws.amazon.com/eks/latest/userguide/auto-configure-alb.html)
 - [Terraform AWS provider EKS Auto Mode arguments](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_cluster)
 - [terraform-aws-modules/eks Auto Mode example](https://github.com/terraform-aws-modules/terraform-aws-eks#eks-auto-mode)
+
+## Private Ingress
+
+The intended ingress path is:
+
+```text
+Client -> API Gateway HTTP API -> VPC Link -> internal ALB -> EKS service
+```
+
+Public subnet discovery for internet-facing Kubernetes load balancers is disabled by default:
+
+```hcl
+enable_public_load_balancer_subnet_tags = false
+```
+
+Private subnets remain tagged for internal load balancers. Use [examples/kubernetes/internal-alb-ingress.yaml](./examples/kubernetes/internal-alb-ingress.yaml) to create an EKS Auto Mode internal ALB.
+
+After the internal ALB listener exists, enable the HTTP API private integration:
+
+```hcl
+enable_http_api_gateway        = true
+internal_alb_listener_arn      = "arn:aws:elasticloadbalancing:REGION:ACCOUNT_ID:listener/app/..."
+internal_alb_security_group_id = "sg-..."
+internal_alb_listener_port     = 443
+
+http_api_authorization_type = "AWS_IAM"
+http_api_private_integration_tls_server_name = "internal.example.gov"
+```
+
+For public user-facing APIs, configure `http_api_jwt_authorizer` instead of `AWS_IAM`. More detail is in [docs/private-ingress.md](./docs/private-ingress.md).
+
+## FISMA Posture
+
+This repo is configured with FISMA-aligned defaults for the workload infrastructure, but FISMA compliance is not created by Terraform alone. Compliance requires full system boundary definition, account-level controls, continuous monitoring, documentation, assessment, and agency authorization.
+
+At minimum, pair this stack with centralized CloudTrail, AWS Config, Security Hub, GuardDuty, vulnerability management, least-privilege IAM, approved CI/CD, audit evidence retention, and an ATO package. See [docs/fisma-compliance.md](./docs/fisma-compliance.md).
 
 ## Prerequisites
 
@@ -86,6 +129,10 @@ Important values to change:
 - `cluster_admin_principal_arns`
 - `cluster_viewer_principal_arns`
 - `endpoint_public_access` and `endpoint_public_access_cidrs`
+- `enable_http_api_gateway`
+- `internal_alb_listener_arn`
+- `internal_alb_security_group_id`
+- `http_api_authorization_type` or `http_api_jwt_authorizer`
 - `tags`
 
 By default, the EKS API endpoint is private only. If you need a public endpoint, set `endpoint_public_access = true` and restrict `endpoint_public_access_cidrs` to corporate/VPN CIDRs.
@@ -107,6 +154,12 @@ Format and validate:
 ```sh
 make fmt
 make validate ENV=dev
+```
+
+Run a Terraform security scan when Checkov is installed:
+
+```sh
+make security-scan ENV=dev
 ```
 
 Plan and apply:
@@ -166,7 +219,19 @@ This repository provisions the AWS/EKS platform. Application delivery should be 
 - A separate Terraform workspace/module for platform add-ons.
 - CI/CD jobs that deploy Kubernetes manifests after the cluster exists.
 
-Use Kubernetes service annotations or Gateway/Ingress resources to request AWS load balancers. Public and private subnets are tagged for AWS load balancer discovery.
+Use Kubernetes service annotations or Gateway/Ingress resources to request AWS load balancers. Private subnets are tagged for internal AWS load balancer discovery.
+
+For this architecture, use internal ALBs only. Do not set `enable_public_load_balancer_subnet_tags = true` unless an approved architecture decision permits internet-facing Kubernetes load balancers.
+
+## MCP Configuration
+
+Example MCP client configuration is in [mcp/mcp.example.json](./mcp/mcp.example.json). It includes:
+
+- HashiCorp Terraform MCP for current Terraform Registry context.
+- AWS Labs Terraform MCP for AWS Terraform best practices and scanning workflows.
+- AWS Labs AWS API MCP configured read-only by default.
+
+Do not commit real MCP credentials or run AWS MCP with production write permissions. Prefer read-only profiles and approved change windows.
 
 ## Destroy
 

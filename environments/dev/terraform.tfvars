@@ -6,6 +6,8 @@ vpc_cidr           = "10.10.0.0/16"
 az_count           = 3
 single_nat_gateway = true
 
+enable_public_load_balancer_subnet_tags = false
+
 kubernetes_version   = "1.33"
 auto_mode_node_pools = ["system", "general-purpose"]
 
@@ -23,6 +25,14 @@ vpc_flow_log_retention_days = 30
 deletion_protection  = false
 upgrade_support_type = "STANDARD"
 enable_zonal_shift   = true
+
+# Enable after the internal EKS Auto Mode ALB listener exists.
+enable_http_api_gateway            = false
+internal_alb_listener_arn          = null
+internal_alb_security_group_id     = null
+internal_alb_listener_port         = 443
+http_api_authorization_type        = "AWS_IAM"
+http_api_access_log_retention_days = 30
 
 tags = {
   CostCenter = "platform"

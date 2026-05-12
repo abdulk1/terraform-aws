@@ -34,8 +34,8 @@ module "vpc" {
   public_subnet_tags = merge(
     {
       "kubernetes.io/cluster/${local.cluster_name}" = "shared"
-      "kubernetes.io/role/elb"                      = "1"
     },
+    var.enable_public_load_balancer_subnet_tags ? { "kubernetes.io/role/elb" = "1" } : {},
     var.public_subnet_tags,
   )
 

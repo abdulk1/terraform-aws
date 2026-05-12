@@ -45,6 +45,21 @@ output "private_subnet_ids" {
 }
 
 output "public_subnet_ids" {
-  description = "Public subnet IDs for internet-facing load balancers."
+  description = "Public subnet IDs for NAT gateways and approved edge resources."
   value       = module.platform.public_subnet_ids
+}
+
+output "http_api_endpoint" {
+  description = "API Gateway HTTP API endpoint."
+  value       = module.platform.http_api_endpoint
+}
+
+output "http_api_vpc_link_id" {
+  description = "API Gateway VPC Link ID."
+  value       = module.platform.http_api_vpc_link_id
+}
+
+output "api_gateway_vpc_link_security_group_id" {
+  description = "Security group ID used by the API Gateway VPC Link ENIs."
+  value       = module.platform.api_gateway_vpc_link_security_group_id
 }
