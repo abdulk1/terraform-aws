@@ -94,6 +94,8 @@ module "argocd_capability" {
   secrets_manager_secret_arns     = var.argocd_secrets_manager_secret_arns
   enable_codeconnections_access   = var.argocd_enable_codeconnections_access
   codeconnections_connection_arns = var.argocd_codeconnections_connection_arns
+  enable_ecr_pull_access          = var.argocd_enable_ecr_pull_access
+  ecr_repository_arns             = var.argocd_ecr_repository_arns
 
   tags = local.default_tags
 }

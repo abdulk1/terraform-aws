@@ -92,6 +92,18 @@ variable "codeconnections_connection_arns" {
   default     = []
 }
 
+variable "enable_ecr_pull_access" {
+  description = "Whether to grant the capability role read access to ECR repositories listed in ecr_repository_arns. Needed when Argo CD pulls OCI Helm charts or manifests from ECR."
+  type        = bool
+  default     = false
+}
+
+variable "ecr_repository_arns" {
+  description = "ECR repository ARNs the capability role can pull from."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Tags applied to all resources in this module."
   type        = map(string)

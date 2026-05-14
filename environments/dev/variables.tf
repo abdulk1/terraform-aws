@@ -307,6 +307,18 @@ variable "argocd_codeconnections_connection_arns" {
   default     = []
 }
 
+variable "argocd_enable_ecr_pull_access" {
+  description = "Grant the Argo CD capability role pull access to ECR repositories listed in argocd_ecr_repository_arns. Needed for OCI Helm charts or manifests stored in ECR."
+  type        = bool
+  default     = false
+}
+
+variable "argocd_ecr_repository_arns" {
+  description = "ECR repository ARNs Argo CD may pull from."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Additional tags to apply to all supported resources."
   type        = map(string)
