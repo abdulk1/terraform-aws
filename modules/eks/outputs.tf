@@ -1,0 +1,40 @@
+output "cluster_name" {
+  description = "EKS cluster name."
+  value       = module.eks.cluster_name
+}
+
+output "cluster_arn" {
+  description = "EKS cluster ARN."
+  value       = module.eks.cluster_arn
+}
+
+output "cluster_endpoint" {
+  description = "EKS cluster API endpoint."
+  value       = module.eks.cluster_endpoint
+  sensitive   = true
+}
+
+output "cluster_security_group_id" {
+  description = "EKS cluster security group ID."
+  value       = module.eks.cluster_security_group_id
+}
+
+output "node_security_group_id" {
+  description = "Shared node security group ID."
+  value       = module.eks.node_security_group_id
+}
+
+output "node_iam_role_arn" {
+  description = "EKS Auto Mode node IAM role ARN."
+  value       = module.eks.node_iam_role_arn
+}
+
+output "kms_key_arn" {
+  description = "KMS key ARN used for EKS secret encryption."
+  value       = module.eks.kms_key_arn
+}
+
+output "oidc_provider_arn" {
+  description = "OIDC provider ARN for IRSA."
+  value       = module.eks.oidc_provider_arn
+}

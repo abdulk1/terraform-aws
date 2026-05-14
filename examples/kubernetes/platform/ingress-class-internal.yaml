@@ -1,0 +1,72 @@
+# Platform-owned. Apply this once per cluster (or manage it as a platform
+# Argo CD Application). App teams should not edit this file.
+#
+# Every Ingress that sets `spec.ingressClassName: internal-alb` will share the
+# same internal ALB via the shared IngressGroup configured below. Subnet
+# discovery uses the `kubernetes.io/role/internal-elb=1` tag that the network
+# Terraform module already applies to private subnets.
+#
+# Notes:
+# - Auto Mode IngressClassParams use apiVersion eks.amazonaws.com/v1 (not the
+#   upstream elbv2.k8s.aws/v1beta1).
+# - In Auto Mode, the per-Ingress `alb.ingress.kubernetes.io/group.name`
+#   annotation is NOT supported; grouping is declared here on the class.
+---
+apiVersion: eks.amazonaws.com/v1
+kind: IngressClassParams
+metadata:
+  name: internal-alb
+spec:
+  scheme: internal
+  ipAddressType: ipv4
+
+  # All Ingresses on this class merge onto one ALB.
+  group:
+    name: platform-internal
+
+  # Use subnets tagged by the network module. No subnet IDs hard-coded here so
+  # the same manifest works across dev/test/prod.
+  subnets:
+    matchTags:
+      kubernetes.io/role/internal-elb: "1"
+
+  # Optional namespace allow-list. Uncomment to restrict which namespaces may
+  # join this class.
+  # namespaceSelector:
+  #   matchLabels:
+  #     ingress-class: internal-alb
+
+  # Optional ACM cert(s) for HTTPS listeners. Fill in per environment.
+  # certificateARNs:
+  #   - arn:aws:acm:us-east-1:123456789012:certificate/REPLACE_ME
+
+  loadBalancerAttributes:
+    - key: routing.http.drop_invalid_header_fields.enabled
+      value: "true"
+    - key: routing.http2.enabled
+      value: "true"
+    - key: idle_timeout.timeout_seconds
+      value: "60"
+    # Enable for production. Requires an S3 bucket and policy.
+    # - key: access_logs.s3.enabled
+    #   value: "true"
+    # - key: access_logs.s3.bucket
+    #   value: REPLACE_ME
+    # - key: deletion_protection.enabled
+    #   value: "true"
+
+  tags:
+    IngressExposure: private
+    ManagedBy: Terraform
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: internal-alb
+  # Do not set is-default-class here. App teams must opt in explicitly.
+spec:
+  controller: eks.amazonaws.com/alb
+  parameters:
+    apiGroup: eks.amazonaws.com
+    kind: IngressClassParams
+    name: internal-alb

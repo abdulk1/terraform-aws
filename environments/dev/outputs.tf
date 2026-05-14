@@ -1,65 +1,85 @@
 output "cluster_name" {
   description = "EKS cluster name."
-  value       = module.platform.cluster_name
+  value       = module.eks.cluster_name
 }
 
 output "cluster_arn" {
   description = "EKS cluster ARN."
-  value       = module.platform.cluster_arn
+  value       = module.eks.cluster_arn
 }
 
 output "cluster_endpoint" {
   description = "EKS cluster API endpoint."
-  value       = module.platform.cluster_endpoint
+  value       = module.eks.cluster_endpoint
   sensitive   = true
 }
 
 output "configure_kubectl" {
   description = "Command to configure kubectl for this cluster."
-  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.platform.cluster_name}"
+  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
 
 output "node_iam_role_arn" {
   description = "EKS Auto Mode node IAM role ARN."
-  value       = module.platform.node_iam_role_arn
+  value       = module.eks.node_iam_role_arn
 }
 
 output "kms_key_arn" {
   description = "KMS key ARN used for EKS secret encryption."
-  value       = module.platform.kms_key_arn
+  value       = module.eks.kms_key_arn
 }
 
 output "oidc_provider_arn" {
   description = "OIDC provider ARN for IRSA."
-  value       = module.platform.oidc_provider_arn
+  value       = module.eks.oidc_provider_arn
 }
 
 output "vpc_id" {
   description = "VPC ID."
-  value       = module.platform.vpc_id
+  value       = module.network.vpc_id
 }
 
 output "private_subnet_ids" {
   description = "Private subnet IDs used by EKS Auto Mode nodes."
-  value       = module.platform.private_subnet_ids
+  value       = module.network.private_subnet_ids
 }
 
-output "public_subnet_ids" {
-  description = "Public subnet IDs for NAT gateways and approved edge resources."
-  value       = module.platform.public_subnet_ids
+output "vpc_endpoint_security_group_id" {
+  description = "Security group attached to AWS service interface endpoints."
+  value       = module.network.vpc_endpoint_security_group_id
 }
 
 output "http_api_endpoint" {
   description = "API Gateway HTTP API endpoint."
-  value       = module.platform.http_api_endpoint
+  value       = try(module.api_gateway[0].http_api_endpoint, null)
 }
 
 output "http_api_vpc_link_id" {
   description = "API Gateway VPC Link ID."
-  value       = module.platform.http_api_vpc_link_id
+  value       = try(module.api_gateway[0].http_api_vpc_link_id, null)
 }
 
 output "api_gateway_vpc_link_security_group_id" {
   description = "Security group ID used by the API Gateway VPC Link ENIs."
-  value       = module.platform.api_gateway_vpc_link_security_group_id
+  value       = try(module.api_gateway[0].vpc_link_security_group_id, null)
+}
+
+output "argocd_server_url" {
+  description = "Argo CD UI/API URL when the capability is enabled."
+  value       = try(module.argocd_capability[0].argocd_server_url, null)
+}
+
+output "argocd_capability_arn" {
+  description = "ARN of the Argo CD EKS capability."
+  value       = try(module.argocd_capability[0].capability_arn, null)
+}
+
+output "argocd_capability_role_arn" {
+  description = "IAM role assumed by the Argo CD capability service."
+  value       = try(module.argocd_capability[0].capability_role_arn, null)
+}
+
+output "argocd_idc_managed_application_arn" {
+  description = "IAM Identity Center managed application ARN created for Argo CD."
+  value       = try(module.argocd_capability[0].idc_managed_application_arn, null)
 }

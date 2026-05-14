@@ -1,0 +1,31 @@
+# App-team template. Copy and edit per workload.
+#
+# The platform IngressClass `internal-alb` (see ../platform/ingress-class-internal.yaml)
+# routes every Ingress here onto a single shared internal ALB. You only need
+# to set ingressClassName and your rules — no ALB or group annotations.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp
+  namespace: default
+  annotations:
+    # Optional listener-port override (default 80). HTTPS requires
+    # certificateARNs to be set on the IngressClassParams.
+    # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+
+    # Optional health check overrides.
+    # alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    # alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+spec:
+  ingressClassName: internal-alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp
+                port:
+                  number: 80

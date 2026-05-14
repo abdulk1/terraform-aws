@@ -6,24 +6,24 @@ The intended ingress path is:
 Client -> API Gateway HTTP API -> VPC Link -> internal ALB -> EKS service
 ```
 
-The Kubernetes ALB must be internal. Public subnet discovery for internet-facing Kubernetes load balancers is disabled by default by setting:
-
-```hcl
-enable_public_load_balancer_subnet_tags = false
-```
-
-Private subnets remain tagged with `kubernetes.io/role/internal-elb = 1`.
+The Kubernetes ALB must be internal. The VPC has no internet gateway and no public subnets, so internet-facing Kubernetes load balancers cannot be provisioned. Private subnets are tagged with `kubernetes.io/role/internal-elb = 1`.
 
 ## Create The Internal ALB
 
-Apply the EKS Auto Mode ingress example after the service exists:
+Apply the platform-owned `IngressClass` once per cluster:
 
 ```sh
-kubectl apply -f examples/kubernetes/internal-alb-ingress.yaml
+kubectl apply -f examples/kubernetes/platform/ingress-class-internal.yaml
+```
+
+App teams then deploy their workload + Ingress (using `ingressClassName: internal-alb`):
+
+```sh
+kubectl apply -f examples/kubernetes/app/sample-ingress.yaml
 kubectl get ingress webapp -n default
 ```
 
-The ALB DNS name should start with `internal-`.
+The first Ingress on the class provisions the internal ALB. Subsequent Ingresses with the same `ingressClassName` join the shared ALB via the `group.name` set on the IngressClassParams — no per-Ingress group annotation is needed (Auto Mode disallows it). The ALB DNS name should start with `internal-`.
 
 ## Enable HTTP API Gateway
 

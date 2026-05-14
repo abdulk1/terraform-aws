@@ -4,7 +4,7 @@ module "eks" {
 
   region = var.aws_region
 
-  name               = local.cluster_name
+  name               = var.cluster_name
   kubernetes_version = var.kubernetes_version
 
   authentication_mode = "API"
@@ -14,13 +14,13 @@ module "eks" {
   )
   enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
 
-  vpc_id                   = module.vpc.vpc_id
-  subnet_ids               = module.vpc.private_subnets
-  control_plane_subnet_ids = module.vpc.private_subnets
+  vpc_id                   = var.vpc_id
+  subnet_ids               = var.subnet_ids
+  control_plane_subnet_ids = var.subnet_ids
 
-  endpoint_private_access      = true
-  endpoint_public_access       = var.endpoint_public_access
-  endpoint_public_access_cidrs = var.endpoint_public_access_cidrs
+  # FISMA baseline: private-only EKS API. Public endpoint must never be enabled.
+  endpoint_private_access = true
+  endpoint_public_access  = false
 
   compute_config = {
     enabled    = true
@@ -48,5 +48,5 @@ module "eks" {
   }
   zonal_shift_config = local.zonal_shift_config
 
-  tags = local.common_tags
+  tags = var.tags
 }

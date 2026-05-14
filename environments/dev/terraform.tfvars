@@ -1,18 +1,12 @@
-project_name = "enterprise-webapp"
+project_name = "hive-mvp"
 environment  = "dev"
 aws_region   = "us-east-1"
 
-vpc_cidr           = "10.10.0.0/16"
-az_count           = 3
-single_nat_gateway = true
+vpc_cidr = "10.10.0.0/16"
+az_count = 3
 
-enable_public_load_balancer_subnet_tags = false
-
-kubernetes_version   = "1.33"
+kubernetes_version   = "1.35"
 auto_mode_node_pools = ["system", "general-purpose"]
-
-endpoint_public_access       = false
-endpoint_public_access_cidrs = ["0.0.0.0/0"]
 
 enable_cluster_creator_admin_permissions = true
 cluster_admin_principal_arns             = []
