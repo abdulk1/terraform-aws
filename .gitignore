@@ -1,19 +1,56 @@
-# Terraform local state and working directories
-.terraform/
+# Local .terraform directories
+**/.terraform/*
+
+# Terraform state files
 *.tfstate
 *.tfstate.*
+*.tfstate.backup
+
+# Crash log files
 crash.log
 crash.*.log
+
+# Terraform lock info
+.terraform.tfstate.lock.info
+
+# Local/auto-loaded tfvars may contain secrets — committed environment
+# tfvars under environments/*/terraform.tfvars are intentionally tracked.
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally
+# and so are not checked in.
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 
-# Plan files can contain sensitive values
-*.tfplan
-tfplan
+# Ignore transient lock info files created by terraform apply
+.terraform.lock.hcl.bak
 
-# Local CLI and editor files
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore Terraform plan output files (may contain sensitive values)
+*.tfplan
+*.tfplan.*
+tfplan
+plan.out
+
+# Ignore generated provider docs
+.terraform.d/
+
+# macOS
 .DS_Store
+
+# Editors / IDEs
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
+
+# Local environment files
+.env
+.env.*

@@ -27,3 +27,8 @@ output "capability_role_arn" {
   description = "IAM capability role ARN assumed by the EKS capability service."
   value       = aws_iam_role.capability.arn
 }
+
+output "capability_access_entry_arn" {
+  description = "ARN of the EKS access entry created for the Argo CD capability role."
+  value       = aws_eks_access_entry.capability.access_entry_arn
+}

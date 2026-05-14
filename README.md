@@ -28,7 +28,6 @@ It creates:
 ├── docs/
 ├── examples/
 │   └── kubernetes/
-├── mcp/
 ├── modules/
 │   ├── network/
 │   ├── eks/
@@ -224,15 +223,58 @@ Use Kubernetes service annotations or Gateway/Ingress resources to request AWS l
 
 For this architecture, use internal ALBs only. The VPC has no internet gateway or public subnets, so internet-facing Kubernetes load balancers cannot be provisioned by design.
 
-## MCP Configuration
+## Argo CD (EKS Managed Capability)
 
-Example MCP client configuration is in [mcp/mcp.example.json](./mcp/mcp.example.json). It includes:
+EKS Auto Mode supports a fully AWS-managed Argo CD via the `aws_eks_capability` resource. This stack wraps it in [modules/argocd-capability](./modules/argocd-capability) and wires it into each environment behind `enable_argocd_capability` (default `false`).
 
-- HashiCorp Terraform MCP for current Terraform Registry context.
-- AWS Labs Terraform MCP for AWS Terraform best practices and scanning workflows.
-- AWS Labs AWS API MCP configured read-only by default.
+Prerequisites:
 
-Do not commit real MCP credentials or run AWS MCP with production write permissions. Prefer read-only profiles and approved change windows.
+- An AWS IAM Identity Center instance in the same organization (local Argo CD users are not supported).
+- The Identity Center group/user IDs to grant Argo CD `ADMIN` (look them up with `aws identitystore list-groups --identity-store-id <id>`).
+- The cluster must already be applied — the capability attaches to an existing cluster.
+
+To enable, set the following in `environments/<env>/terraform.tfvars`:
+
+```hcl
+enable_argocd_capability = true
+argocd_idc_instance_arn  = "arn:aws:sso:::instance/ssoins-xxxxxxxxxxxxxxxx"
+argocd_idc_region        = "us-east-1" # omit to default to aws_region
+
+argocd_rbac_role_mappings = [
+  {
+    role = "ADMIN"
+    identities = [
+      { id = "<idc-group-id>", type = "SSO_GROUP" },
+    ]
+  },
+]
+```
+
+Optional toggles (all default off / empty):
+
+- `argocd_capability_name`, `argocd_delete_propagation_policy` — capability naming and CRD retention on delete.
+- `argocd_vpc_endpoint_ids` — restrict UI/API access to specific VPC endpoints for private-only reach.
+- `argocd_enable_secrets_manager_access` + `argocd_secrets_manager_secret_arns` — Argo CD reads Git credentials from Secrets Manager.
+- `argocd_enable_codeconnections_access` + `argocd_codeconnections_connection_arns` — Argo CD authenticates to Git via AWS CodeConnections.
+- `argocd_enable_ecr_pull_access` + `argocd_ecr_repository_arns` — Argo CD pulls OCI Helm charts or manifests from ECR.
+
+What the module does for you:
+
+- Creates the capability IAM role with the `capabilities.eks.amazonaws.com` trust policy.
+- Creates an EKS access entry + cluster-admin access policy association for that role, so Argo CD can actually deploy to the cluster.
+- Registers the capability with EKS (including IdC integration and any RBAC role mappings).
+- Adds the scoped IAM policies for the optional integrations above.
+
+Post-apply (one-time, per cluster):
+
+1. Read `terraform output argocd_server_url` for the managed Argo CD UI.
+2. Register the cluster as an Argo CD deployment target by applying the cluster-secret manifest documented in [AWS docs](https://docs.aws.amazon.com/eks/latest/userguide/argocd-add-cluster.html). This is a `kubectl apply` step and is intentionally not Terraform-managed.
+3. Sign in via your IAM Identity Center group mapped to `ADMIN`.
+
+References:
+
+- [AWS EKS managed Argo CD capability](https://docs.aws.amazon.com/eks/latest/userguide/argocd.html)
+- [Terraform `aws_eks_capability`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_capability)
 
 ## Destroy
 

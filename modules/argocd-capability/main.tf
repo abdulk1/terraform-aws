@@ -59,6 +59,61 @@ resource "aws_iam_role_policy" "codeconnections" {
   policy = data.aws_iam_policy_document.codeconnections[0].json
 }
 
+data "aws_iam_policy_document" "ecr_pull" {
+  count = var.enable_ecr_pull_access ? 1 : 0
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:DescribeRepositories",
+      "ecr:DescribeImages",
+    ]
+    resources = var.ecr_repository_arns
+  }
+}
+
+resource "aws_iam_role_policy" "ecr_pull" {
+  count = var.enable_ecr_pull_access ? 1 : 0
+
+  name   = "ecr-pull"
+  role   = aws_iam_role.capability.id
+  policy = data.aws_iam_policy_document.ecr_pull[0].json
+}
+
+# Grant the capability role permission to talk to the cluster. Without this
+# the EKS-managed Argo CD service can authenticate to AWS but cannot deploy
+# Application/AppProject manifests to the Kubernetes API.
+resource "aws_eks_access_entry" "capability" {
+  cluster_name  = var.cluster_name
+  principal_arn = aws_iam_role.capability.arn
+  type          = "STANDARD"
+
+  tags = var.tags
+}
+
+resource "aws_eks_access_policy_association" "capability" {
+  cluster_name  = var.cluster_name
+  principal_arn = aws_iam_role.capability.arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.capability]
+}
+
 resource "aws_eks_capability" "argocd" {
   cluster_name              = var.cluster_name
   capability_name           = var.capability_name
@@ -119,5 +174,12 @@ resource "aws_eks_capability" "argocd" {
       condition     = !var.enable_codeconnections_access || length(var.codeconnections_connection_arns) > 0
       error_message = "enable_codeconnections_access requires codeconnections_connection_arns to be set."
     }
+
+    precondition {
+      condition     = !var.enable_ecr_pull_access || length(var.ecr_repository_arns) > 0
+      error_message = "enable_ecr_pull_access requires ecr_repository_arns to be set."
+    }
   }
+
+  depends_on = [aws_eks_access_policy_association.capability]
 }
