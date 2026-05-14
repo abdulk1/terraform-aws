@@ -4,11 +4,10 @@ This repository provisions an AWS foundation for an enterprise web application a
 
 It creates:
 
-- A dedicated VPC per environment across 3 Availability Zones.
-- Public subnets for NAT gateways and controlled edge resources.
+- A dedicated, fully private VPC per environment across 3 Availability Zones (no NAT gateway, no internet gateway, no public subnets).
 - Private subnets for EKS Auto Mode nodes.
-- NAT egress for private subnets, with one NAT gateway in non-prod and one per AZ in prod.
-- Amazon EKS with Auto Mode compute enabled.
+- VPC interface endpoints (and an S3 gateway endpoint) for the AWS services EKS Auto Mode and typical workloads need.
+- Amazon EKS with Auto Mode compute enabled, private API endpoint only.
 - Built-in EKS Auto Mode `system` and `general-purpose` node pools.
 - EKS API authentication through access entries, not `aws-auth`.
 - KMS-backed Kubernetes secret encryption.
@@ -31,7 +30,9 @@ It creates:
 │   └── kubernetes/
 ├── mcp/
 ├── modules/
-│   └── eks-auto-mode-platform/
+│   ├── network/
+│   ├── eks/
+│   └── api-gateway/
 ├── Makefile
 └── README.md
 ```
@@ -61,13 +62,14 @@ The intended ingress path is:
 Client -> API Gateway HTTP API -> VPC Link -> internal ALB -> EKS service
 ```
 
-Public subnet discovery for internet-facing Kubernetes load balancers is disabled by default:
+There are no public subnets and no internet gateway in this VPC, so internet-facing Kubernetes load balancers cannot be provisioned. Private subnets remain tagged for internal load balancers.
 
-```hcl
-enable_public_load_balancer_subnet_tags = false
-```
+Ingress is split into platform-owned and app-owned manifests:
 
-Private subnets remain tagged for internal load balancers. Use [examples/kubernetes/internal-alb-ingress.yaml](./examples/kubernetes/internal-alb-ingress.yaml) to create an EKS Auto Mode internal ALB.
+- Platform: [examples/kubernetes/platform/ingress-class-internal.yaml](./examples/kubernetes/platform/ingress-class-internal.yaml) — `IngressClass` + `IngressClassParams` (scheme, subnets, group, ALB attrs). Apply once per cluster, or manage via Argo CD.
+- App: [examples/kubernetes/app/sample-ingress.yaml](./examples/kubernetes/app/sample-ingress.yaml) — copy per workload, set `ingressClassName: internal-alb` and your rules.
+
+All Ingresses on the `internal-alb` class merge onto a single shared internal ALB (configured via `spec.group.name` on the IngressClassParams).
 
 After the internal ALB listener exists, enable the HTTP API private integration:
 
@@ -128,16 +130,15 @@ Important values to change:
 - `vpc_cidr`
 - `cluster_admin_principal_arns`
 - `cluster_viewer_principal_arns`
-- `endpoint_public_access` and `endpoint_public_access_cidrs`
 - `enable_http_api_gateway`
 - `internal_alb_listener_arn`
 - `internal_alb_security_group_id`
 - `http_api_authorization_type` or `http_api_jwt_authorizer`
 - `tags`
 
-By default, the EKS API endpoint is private only. If you need a public endpoint, set `endpoint_public_access = true` and restrict `endpoint_public_access_cidrs` to corporate/VPN CIDRs.
+The EKS API endpoint is hard-wired to private-only and cannot be exposed publicly from this module. Reach the cluster from a network path that lands inside the VPC (VPN, Direct Connect, bastion, or a private runner).
 
-For production, `single_nat_gateway = false` creates one NAT gateway per AZ and `deletion_protection = true` protects the EKS cluster.
+For production, set `deletion_protection = true` to protect the EKS cluster.
 
 ## Deploy
 
@@ -221,7 +222,7 @@ This repository provisions the AWS/EKS platform. Application delivery should be 
 
 Use Kubernetes service annotations or Gateway/Ingress resources to request AWS load balancers. Private subnets are tagged for internal AWS load balancer discovery.
 
-For this architecture, use internal ALBs only. Do not set `enable_public_load_balancer_subnet_tags = true` unless an approved architecture decision permits internet-facing Kubernetes load balancers.
+For this architecture, use internal ALBs only. The VPC has no internet gateway or public subnets, so internet-facing Kubernetes load balancers cannot be provisioned by design.
 
 ## MCP Configuration
 

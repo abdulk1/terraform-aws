@@ -30,46 +30,16 @@ variable "private_subnet_cidrs" {
   default     = []
 }
 
-variable "public_subnet_cidrs" {
-  description = "Optional explicit public subnet CIDRs."
-  type        = list(string)
-  default     = []
-}
-
-variable "single_nat_gateway" {
-  description = "Use one shared NAT gateway. Set false for one NAT gateway per AZ."
-  type        = bool
-  default     = true
-}
-
-variable "enable_public_load_balancer_subnet_tags" {
-  description = "Whether to tag public subnets for internet-facing Kubernetes load balancer discovery."
-  type        = bool
-  default     = false
-}
-
 variable "kubernetes_version" {
   description = "EKS Kubernetes minor version."
   type        = string
-  default     = "1.33"
+  default     = "1.35"
 }
 
 variable "auto_mode_node_pools" {
   description = "Built-in EKS Auto Mode node pools to enable."
   type        = list(string)
   default     = ["system", "general-purpose"]
-}
-
-variable "endpoint_public_access" {
-  description = "Whether to enable the public EKS API endpoint."
-  type        = bool
-  default     = false
-}
-
-variable "endpoint_public_access_cidrs" {
-  description = "CIDR blocks allowed to reach the public EKS API endpoint."
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
 }
 
 variable "enable_cluster_creator_admin_permissions" {
@@ -263,6 +233,78 @@ variable "manage_internal_alb_security_group_rule" {
   description = "Whether Terraform should add an ingress rule on the internal ALB security group from the API Gateway VPC Link security group."
   type        = bool
   default     = true
+}
+
+variable "enable_argocd_capability" {
+  description = "Whether to create the EKS-managed Argo CD capability on the cluster. Requires AWS IAM Identity Center."
+  type        = bool
+  default     = false
+}
+
+variable "argocd_capability_name" {
+  description = "Name of the Argo CD capability resource."
+  type        = string
+  default     = "argocd"
+}
+
+variable "argocd_idc_instance_arn" {
+  description = "IAM Identity Center instance ARN used by Argo CD for authentication."
+  type        = string
+  default     = null
+}
+
+variable "argocd_idc_region" {
+  description = "AWS region of the IAM Identity Center instance. Defaults to the cluster region."
+  type        = string
+  default     = null
+}
+
+variable "argocd_rbac_role_mappings" {
+  description = "Argo CD RBAC role mappings, for example admin assignment to Identity Center users/groups."
+  type = list(object({
+    role = string
+    identities = list(object({
+      id   = string
+      type = string
+    }))
+  }))
+  default = []
+}
+
+variable "argocd_vpc_endpoint_ids" {
+  description = "Optional VPC endpoint IDs for private access to the Argo CD UI."
+  type        = list(string)
+  default     = []
+}
+
+variable "argocd_delete_propagation_policy" {
+  description = "Behavior for Argo CD CRDs on capability delete."
+  type        = string
+  default     = "RETAIN"
+}
+
+variable "argocd_enable_secrets_manager_access" {
+  description = "Grant the Argo CD capability role read access to specific Secrets Manager secrets."
+  type        = bool
+  default     = false
+}
+
+variable "argocd_secrets_manager_secret_arns" {
+  description = "Secrets Manager ARNs Argo CD may read."
+  type        = list(string)
+  default     = []
+}
+
+variable "argocd_enable_codeconnections_access" {
+  description = "Grant the Argo CD capability role use of CodeConnections."
+  type        = bool
+  default     = false
+}
+
+variable "argocd_codeconnections_connection_arns" {
+  description = "CodeConnections connection ARNs Argo CD may use."
+  type        = list(string)
+  default     = []
 }
 
 variable "tags" {
