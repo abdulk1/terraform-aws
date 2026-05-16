@@ -18,6 +18,7 @@ It creates:
 - VPC flow logs.
 - An internal Application Load Balancer provisioned alongside EKS as the standing ingress, with a 404 fixed-response default listener that workloads attach to via `TargetGroupBinding` (HTTP or HTTPS, configurable per environment).
 - Optional API Gateway HTTP API with VPC Link private integration to the internal ALB, supporting route keys, JWT or AWS_IAM authorization, and CORS.
+- Optional CloudFront + private S3 distribution for hosting a React single-page application UI, with Origin Access Control, SPA routing rewrites, and a custom cache policy.
 - IRSA OIDC provider for workloads that still use IAM roles for service accounts.
 
 ## Repository Layout
@@ -36,6 +37,7 @@ It creates:
 │   ├── eks/
 │   ├── internal-alb/
 │   ├── api-gateway/
+│   ├── cloudfront-spa/
 │   └── argocd-capability/
 ├── Makefile
 └── README.md
@@ -110,6 +112,37 @@ Configurable settings (all live in `environments/<env>/terraform.tfvars`):
 
 More detail is in [docs/private-ingress.md](./docs/private-ingress.md).
 
+## React SPA UI (CloudFront + S3)
+
+The [`cloudfront-spa`](./modules/cloudfront-spa) module provisions a CloudFront distribution that serves a React single-page application from a private S3 bucket. It is gated per environment by `enable_cloudfront_spa` (default `false`).
+
+What the module creates:
+
+- A private S3 bucket with `BucketOwnerEnforced` ownership, all public access blocked, versioning on, SSE-S3 (or KMS via `cloudfront_spa_kms_key_arn`), and a bucket policy that allows reads only from this distribution and denies non-TLS access.
+- A CloudFront Origin Access Control (OAC, SigV4) — the modern replacement for Origin Access Identity.
+- A CloudFront distribution with HTTPS-redirect, HTTP/2+3, IPv6, optional WAFv2 (`cloudfront_spa_web_acl_id`, must be CloudFront-scoped in `us-east-1`), optional geo restriction, and optional standard access logging.
+- SPA routing: by default 403 and 404 origin responses are rewritten to `/index.html` with HTTP 200 so client-side routes resolve. Toggle with `cloudfront_spa_error_responses`.
+- A custom `aws_cloudfront_cache_policy` attached to the default behavior. Configurable via the `cloudfront_spa_cache_policy` object:
+  - `min_ttl` / `default_ttl` / `max_ttl` (defaults 0 / 1 day / 1 year)
+  - `enable_accept_encoding_brotli`, `enable_accept_encoding_gzip` (both default `true`)
+  - `cookie_behavior` + `cookies`, `header_behavior` + `headers`, `query_string_behavior` + `query_strings` for what enters the cache key and is forwarded to origin. Defaults forward nothing — best for fully content-hashed SPA bundles.
+
+Custom domains are optional. To attach one, set both `cloudfront_spa_aliases` and `cloudfront_spa_acm_certificate_arn` (the ACM certificate **must** be issued in `us-east-1`). Without those the distribution serves on its default `*.cloudfront.net` domain.
+
+Outputs per environment: `cloudfront_spa_bucket_name`, `cloudfront_spa_distribution_id`, `cloudfront_spa_distribution_domain_name`, `cloudfront_spa_distribution_hosted_zone_id`, `cloudfront_spa_cache_policy_id`.
+
+Typical deploy workflow once the stack is applied:
+
+```sh
+# Sync the built React bundle.
+aws s3 sync ./dist s3://$(terraform -chdir=environments/dev output -raw cloudfront_spa_bucket_name)/ --delete
+
+# Invalidate the distribution so users see the new bundle immediately.
+aws cloudfront create-invalidation \
+  --distribution-id $(terraform -chdir=environments/dev output -raw cloudfront_spa_distribution_id) \
+  --paths "/*"
+```
+
 ## FISMA Posture
 
 This repo is configured with FISMA-aligned defaults for the workload infrastructure, but FISMA compliance is not created by Terraform alone. Compliance requires full system boundary definition, account-level controls, continuous monitoring, documentation, assessment, and agency authorization.
@@ -162,6 +195,7 @@ Important values to change:
 - `http_api_route_keys`
 - `http_api_authorization_type` or `http_api_jwt_authorizer`
 - `http_api_cors`
+- `enable_cloudfront_spa`, `cloudfront_spa_aliases`, `cloudfront_spa_acm_certificate_arn` (cert must be in `us-east-1`), `cloudfront_spa_web_acl_id`, `cloudfront_spa_cache_policy`
 - `tags`
 
 When `enable_internal_alb = true`, the ALB outputs are wired into the API Gateway module automatically. When `false`, supply your own ALB via `internal_alb_listener_arn` and `internal_alb_security_group_id`.

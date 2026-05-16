@@ -94,6 +94,31 @@ output "api_gateway_vpc_link_security_group_id" {
   value       = try(module.api_gateway[0].vpc_link_security_group_id, null)
 }
 
+output "cloudfront_spa_bucket_name" {
+  description = "S3 bucket hosting the SPA assets."
+  value       = try(module.cloudfront_spa[0].bucket_name, null)
+}
+
+output "cloudfront_spa_distribution_id" {
+  description = "CloudFront distribution ID for the SPA. Use for cache invalidations after deploys."
+  value       = try(module.cloudfront_spa[0].distribution_id, null)
+}
+
+output "cloudfront_spa_distribution_domain_name" {
+  description = "CloudFront distribution domain name for the SPA."
+  value       = try(module.cloudfront_spa[0].distribution_domain_name, null)
+}
+
+output "cloudfront_spa_distribution_hosted_zone_id" {
+  description = "Route 53 hosted zone ID for the SPA CloudFront distribution. Use for alias records."
+  value       = try(module.cloudfront_spa[0].distribution_hosted_zone_id, null)
+}
+
+output "cloudfront_spa_cache_policy_id" {
+  description = "Custom CloudFront cache policy ID attached to the SPA distribution."
+  value       = try(module.cloudfront_spa[0].cache_policy_id, null)
+}
+
 output "argocd_server_url" {
   description = "Argo CD UI/API URL when the capability is enabled."
   value       = try(module.argocd_capability[0].argocd_server_url, null)

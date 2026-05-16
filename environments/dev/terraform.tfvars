@@ -97,6 +97,30 @@ enable_argocd_capability = false
 # argocd_enable_ecr_pull_access          = false
 # argocd_ecr_repository_arns             = []
 
+# CloudFront + private S3 distribution for the React SPA UI.
+# Off by default. Flip to true when ready to host the UI. Aliases + ACM cert
+# (in us-east-1) are optional — without them the distribution serves on its
+# default *.cloudfront.net domain.
+enable_cloudfront_spa = false
+# cloudfront_spa_aliases             = ["app.dev.example.com"]
+# cloudfront_spa_acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx"
+# cloudfront_spa_web_acl_id          = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/example/xxxxxxxx"
+
+# Cache policy attached to the default behavior. Defaults: forward nothing in
+# the cache key (good for fully content-hashed SPA bundles); 1d default TTL,
+# 1y max TTL, brotli + gzip on. Override here if the SPA needs query strings
+# or specific headers in the cache key.
+cloudfront_spa_cache_policy = {
+  min_ttl                       = 0
+  default_ttl                   = 86400
+  max_ttl                       = 31536000
+  enable_accept_encoding_brotli = true
+  enable_accept_encoding_gzip   = true
+  cookie_behavior               = "none"
+  header_behavior               = "none"
+  query_string_behavior         = "none"
+}
+
 tags = {
   CostCenter = "platform"
   Workload   = "web"

@@ -464,6 +464,142 @@ variable "argocd_ecr_repository_arns" {
   default     = []
 }
 
+variable "enable_cloudfront_spa" {
+  description = "Whether to provision a CloudFront + private S3 distribution for hosting a React SPA UI."
+  type        = bool
+  default     = false
+}
+
+variable "cloudfront_spa_bucket_name" {
+  description = "Optional explicit S3 bucket name for SPA assets. Defaults to name_prefix-ui."
+  type        = string
+  default     = null
+}
+
+variable "cloudfront_spa_comment" {
+  description = "Optional CloudFront distribution comment."
+  type        = string
+  default     = null
+}
+
+variable "cloudfront_spa_default_root_object" {
+  description = "Default root object served by the SPA distribution."
+  type        = string
+  default     = "index.html"
+}
+
+variable "cloudfront_spa_aliases" {
+  description = "Custom domain aliases for the SPA distribution. Requires cloudfront_spa_acm_certificate_arn covering them."
+  type        = list(string)
+  default     = []
+}
+
+variable "cloudfront_spa_acm_certificate_arn" {
+  description = "ACM certificate ARN for the SPA distribution. Must be issued in us-east-1."
+  type        = string
+  default     = null
+}
+
+variable "cloudfront_spa_minimum_protocol_version" {
+  description = "Minimum TLS protocol version when a custom certificate is in use."
+  type        = string
+  default     = "TLSv1.2_2021"
+}
+
+variable "cloudfront_spa_price_class" {
+  description = "CloudFront price class for the SPA distribution."
+  type        = string
+  default     = "PriceClass_100"
+}
+
+variable "cloudfront_spa_http_version" {
+  description = "Maximum HTTP version supported by the SPA distribution."
+  type        = string
+  default     = "http2and3"
+}
+
+variable "cloudfront_spa_ipv6_enabled" {
+  description = "Whether the SPA distribution serves IPv6."
+  type        = bool
+  default     = true
+}
+
+variable "cloudfront_spa_web_acl_id" {
+  description = "Optional WAFv2 web ACL ARN attached to the SPA distribution. Must be a CloudFront-scoped (us-east-1) ACL."
+  type        = string
+  default     = null
+}
+
+variable "cloudfront_spa_error_responses" {
+  description = "Rewrite 403/404 origin responses to the default root object so client-side SPA routes resolve."
+  type        = bool
+  default     = true
+}
+
+variable "cloudfront_spa_error_caching_min_ttl" {
+  description = "Minimum TTL CloudFront caches SPA rewrite responses for."
+  type        = number
+  default     = 10
+}
+
+variable "cloudfront_spa_versioning_enabled" {
+  description = "Whether S3 versioning is enabled on the SPA bucket."
+  type        = bool
+  default     = true
+}
+
+variable "cloudfront_spa_kms_key_arn" {
+  description = "Optional customer-managed KMS key ARN for SPA bucket encryption. Null uses SSE-S3."
+  type        = string
+  default     = null
+}
+
+variable "cloudfront_spa_force_destroy" {
+  description = "Allow terraform destroy to delete a non-empty SPA bucket."
+  type        = bool
+  default     = false
+}
+
+variable "cloudfront_spa_geo_restriction" {
+  description = "CloudFront geo restriction for the SPA distribution."
+  type = object({
+    restriction_type = string
+    locations        = optional(list(string), [])
+  })
+  default = {
+    restriction_type = "none"
+    locations        = []
+  }
+}
+
+variable "cloudfront_spa_logging" {
+  description = "Optional CloudFront standard logging config for the SPA distribution."
+  type = object({
+    bucket          = string
+    prefix          = optional(string, null)
+    include_cookies = optional(bool, false)
+  })
+  default = null
+}
+
+variable "cloudfront_spa_cache_policy" {
+  description = "Cache policy parameters attached to the SPA distribution default behavior."
+  type = object({
+    min_ttl                       = optional(number, 0)
+    default_ttl                   = optional(number, 86400)
+    max_ttl                       = optional(number, 31536000)
+    enable_accept_encoding_brotli = optional(bool, true)
+    enable_accept_encoding_gzip   = optional(bool, true)
+    cookie_behavior               = optional(string, "none")
+    cookies                       = optional(list(string), [])
+    header_behavior               = optional(string, "none")
+    headers                       = optional(list(string), [])
+    query_string_behavior         = optional(string, "none")
+    query_strings                 = optional(list(string), [])
+  })
+  default = {}
+}
+
 variable "tags" {
   description = "Additional tags to apply to all supported resources."
   type        = map(string)
