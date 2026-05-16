@@ -35,11 +35,44 @@ module "eks" {
   enabled_log_types               = var.enabled_log_types
   cluster_log_retention_days      = var.cluster_log_retention_days
   kms_key_deletion_window_in_days = var.kms_key_deletion_window_in_days
+  enable_guardduty_agent_addon    = var.enable_guardduty_agent_addon
+
+  guardduty_agent_addon_version              = var.guardduty_agent_addon_version
+  guardduty_agent_addon_configuration_values = var.guardduty_agent_addon_configuration_values
+
+  enable_secrets_store_csi_driver_provider_addon               = var.enable_secrets_store_csi_driver_provider_addon
+  secrets_store_csi_driver_provider_addon_version              = var.secrets_store_csi_driver_provider_addon_version
+  secrets_store_csi_driver_provider_addon_configuration_values = var.secrets_store_csi_driver_provider_addon_configuration_values
+  additional_eks_addons                                        = var.additional_eks_addons
 
   control_plane_scaling_tier = var.control_plane_scaling_tier
   deletion_protection        = var.deletion_protection
   upgrade_support_type       = var.upgrade_support_type
   enable_zonal_shift         = var.enable_zonal_shift
+
+  tags = local.default_tags
+}
+
+module "internal_alb" {
+  count  = var.enable_internal_alb ? 1 : 0
+  source = "../../modules/internal-alb"
+
+  name_prefix = local.name_prefix
+
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.private_subnet_ids
+
+  alb_name                    = var.internal_alb_name
+  listener_protocol           = var.internal_alb_listener_protocol
+  listener_port               = var.internal_alb_listener_port
+  certificate_arn             = var.internal_alb_certificate_arn
+  additional_certificate_arns = var.internal_alb_additional_certificate_arns
+  ssl_policy                  = var.internal_alb_ssl_policy
+  idle_timeout                = var.internal_alb_idle_timeout
+  deletion_protection         = var.internal_alb_deletion_protection
+  ingress_cidr_blocks         = var.internal_alb_ingress_cidr_blocks
+  ingress_security_group_ids  = var.internal_alb_ingress_security_group_ids
+  access_logs                 = var.internal_alb_access_logs
 
   tags = local.default_tags
 }
@@ -53,9 +86,9 @@ module "api_gateway" {
   vpc_id     = module.network.vpc_id
   subnet_ids = module.network.private_subnet_ids
 
-  internal_alb_listener_arn               = var.internal_alb_listener_arn
-  internal_alb_security_group_id          = var.internal_alb_security_group_id
-  internal_alb_listener_port              = var.internal_alb_listener_port
+  internal_alb_listener_arn               = coalesce(try(module.internal_alb[0].listener_arn, null), var.internal_alb_listener_arn)
+  internal_alb_security_group_id          = coalesce(try(module.internal_alb[0].security_group_id, null), var.internal_alb_security_group_id)
+  internal_alb_listener_port              = try(module.internal_alb[0].listener_port, var.internal_alb_listener_port)
   manage_internal_alb_security_group_rule = var.manage_internal_alb_security_group_rule
 
   http_api_name                                = var.http_api_name
@@ -68,6 +101,7 @@ module "api_gateway" {
   http_api_authorization_type                  = var.http_api_authorization_type
   http_api_authorizer_id                       = var.http_api_authorizer_id
   http_api_jwt_authorizer                      = var.http_api_jwt_authorizer
+  http_api_cors                                = var.http_api_cors
   http_api_private_integration_tls_server_name = var.http_api_private_integration_tls_server_name
   http_api_access_log_retention_days           = var.http_api_access_log_retention_days
   http_api_access_log_kms_key_id               = var.http_api_access_log_kms_key_id

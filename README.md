@@ -9,12 +9,15 @@ It creates:
 - VPC interface endpoints (and an S3 gateway endpoint) for the AWS services EKS Auto Mode and typical workloads need.
 - Amazon EKS with Auto Mode compute enabled, private API endpoint only.
 - Built-in EKS Auto Mode `system` and `general-purpose` node pools.
+- EKS Auto Mode built-in Pod Identity Agent support.
+- Amazon GuardDuty EKS Runtime Monitoring agent installed as the `aws-guardduty-agent` EKS add-on.
+- AWS Secrets Store CSI Driver provider installed as the `aws-secrets-store-csi-driver-provider` EKS add-on for mounting Secrets Manager secrets into pods.
 - EKS API authentication through access entries, not `aws-auth`.
 - KMS-backed Kubernetes secret encryption.
 - EKS control plane logs.
 - VPC flow logs.
-- Private/internal ALB discovery for Kubernetes ingress.
-- Optional API Gateway HTTP API with VPC Link private integration to an internal ALB listener.
+- An internal Application Load Balancer provisioned alongside EKS as the standing ingress, with a 404 fixed-response default listener that workloads attach to via `TargetGroupBinding` (HTTP or HTTPS, configurable per environment).
+- Optional API Gateway HTTP API with VPC Link private integration to the internal ALB, supporting route keys, JWT or AWS_IAM authorization, and CORS.
 - IRSA OIDC provider for workloads that still use IAM roles for service accounts.
 
 ## Repository Layout
@@ -31,7 +34,9 @@ It creates:
 ├── modules/
 │   ├── network/
 │   ├── eks/
-│   └── api-gateway/
+│   ├── internal-alb/
+│   ├── api-gateway/
+│   └── argocd-capability/
 ├── Makefile
 └── README.md
 ```
@@ -44,10 +49,19 @@ EKS Auto Mode requires the compute, load balancing, and block storage capabiliti
 
 The module also creates the Auto Mode cluster IAM policies and the Auto Mode node IAM role. AWS requires the node role to be separate from the cluster role.
 
+EKS Auto Mode includes the Pod Identity Agent by default, so this stack does not create a separate `eks-pod-identity-agent` add-on. The EKS module does install the GuardDuty runtime monitoring agent as the `aws-guardduty-agent` add-on by default. GuardDuty Runtime Monitoring still needs to be enabled at the AWS account/organization level for the agent to produce findings.
+
+The EKS module also installs the AWS Secrets Store CSI Driver provider add-on (`aws-secrets-store-csi-driver-provider`) so workloads can mount AWS Secrets Manager secrets and Systems Manager Parameter Store parameters as files. Workloads still need Pod Identity associations and least-privilege IAM permissions for their specific secret ARNs. A sample `SecretProviderClass` and volume mount is in [examples/kubernetes/app/sample-secret-provider-class.yaml](./examples/kubernetes/app/sample-secret-provider-class.yaml).
+
 References:
 
 - [AWS EKS Auto Mode cluster IAM role](https://docs.aws.amazon.com/eks/latest/userguide/auto-cluster-iam-role.html)
 - [AWS EKS Auto Mode node IAM role](https://docs.aws.amazon.com/eks/latest/userguide/auto-create-node-role.html)
+- [AWS EKS Pod Identity Agent setup](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html)
+- [AWS EKS available add-ons](https://docs.aws.amazon.com/eks/latest/userguide/workloads-add-ons-available-eks.html)
+- [AWS Secrets Manager with EKS Pods](https://docs.aws.amazon.com/eks/latest/userguide/manage-secrets.html)
+- [AWS Secrets Store CSI provider with Pod Identity](https://docs.aws.amazon.com/secretsmanager/latest/userguide/ascp-pod-identity-integration.html)
+- [AWS GuardDuty Runtime Monitoring for EKS](https://docs.aws.amazon.com/guardduty/latest/ug/how-runtime-monitoring-works-eks.html)
 - [AWS built-in Auto Mode node pools](https://docs.aws.amazon.com/eks/latest/userguide/set-builtin-node-pools.html)
 - [AWS EKS Auto Mode ALB IngressClassParams](https://docs.aws.amazon.com/eks/latest/userguide/auto-configure-alb.html)
 - [Terraform AWS provider EKS Auto Mode arguments](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_cluster)
@@ -61,28 +75,40 @@ The intended ingress path is:
 Client -> API Gateway HTTP API -> VPC Link -> internal ALB -> EKS service
 ```
 
-There are no public subnets and no internet gateway in this VPC, so internet-facing Kubernetes load balancers cannot be provisioned. Private subnets remain tagged for internal load balancers.
+There are no public subnets and no internet gateway in this VPC, so internet-facing Kubernetes load balancers cannot be provisioned. Private subnets remain tagged for internal load balancers (`kubernetes.io/role/internal-elb`).
 
-Ingress is split into platform-owned and app-owned manifests:
+### Internal ALB
 
-- Platform: [examples/kubernetes/platform/ingress-class-internal.yaml](./examples/kubernetes/platform/ingress-class-internal.yaml) — `IngressClass` + `IngressClassParams` (scheme, subnets, group, ALB attrs). Apply once per cluster, or manage via Argo CD.
-- App: [examples/kubernetes/app/sample-ingress.yaml](./examples/kubernetes/app/sample-ingress.yaml) — copy per workload, set `ingressClassName: internal-alb` and your rules.
+The internal ALB is provisioned by the [`internal-alb`](./modules/internal-alb) module, gated per environment by `enable_internal_alb`. When enabled it creates:
 
-All Ingresses on the `internal-alb` class merge onto a single shared internal ALB (configured via `spec.group.name` on the IngressClassParams).
+- An internal Application Load Balancer across all private subnets.
+- A dedicated security group. Other in-VPC consumers (API Gateway VPC Link ENIs, pod security groups) are granted ingress via `ingress_security_group_ids`; CIDR ingress is opt-in via `ingress_cidr_blocks`.
+- A default listener with a `fixed-response 404` default action. Workloads attach target groups to this listener via Kubernetes `TargetGroupBinding` CRs, which the AWS Load Balancer Controller (bundled with EKS Auto Mode) reconciles. This keeps the ALB stable across pod churn and avoids one ALB per `Ingress`.
 
-After the internal ALB listener exists, enable the HTTP API private integration:
+Default listener protocol is `HTTPS` on port `443` and requires `internal_alb_certificate_arn` to be set to an ACM certificate ARN. AWS does **not** ship a managed certificate on the `*.elb.amazonaws.com` DNS name — any HTTPS listener needs your cert in ACM. For dev convenience the `dev` environment ships with `HTTP` on port `80` so the ALB stands up without a cert prerequisite.
 
-```hcl
-enable_http_api_gateway        = true
-internal_alb_listener_arn      = "arn:aws:elasticloadbalancing:REGION:ACCOUNT_ID:listener/app/..."
-internal_alb_security_group_id = "sg-..."
-internal_alb_listener_port     = 443
+Outputs surfaced per environment: `internal_alb_arn`, `internal_alb_dns_name`, `internal_alb_zone_id`, `internal_alb_listener_arn`, `internal_alb_security_group_id`.
 
-http_api_authorization_type = "AWS_IAM"
-http_api_private_integration_tls_server_name = "internal.example.gov"
-```
+Existing externally provisioned ALBs are still supported — leave `enable_internal_alb = false` and pass `internal_alb_listener_arn` / `internal_alb_security_group_id` directly. The API Gateway module picks the module-created ALB when available and falls back to the externally provisioned inputs otherwise.
 
-For public user-facing APIs, configure `http_api_jwt_authorizer` instead of `AWS_IAM`. More detail is in [docs/private-ingress.md](./docs/private-ingress.md).
+Ingress manifests are split into platform-owned and app-owned files:
+
+- Platform: [examples/kubernetes/platform/ingress-class-internal.yaml](./examples/kubernetes/platform/ingress-class-internal.yaml) — `IngressClass` + `IngressClassParams`.
+- App: [examples/kubernetes/app/sample-ingress.yaml](./examples/kubernetes/app/sample-ingress.yaml) — per-workload `Ingress` (or `TargetGroupBinding`) referencing the shared internal ALB.
+
+### API Gateway HTTP API
+
+The [`api-gateway`](./modules/api-gateway) module is gated by `enable_http_api_gateway` and provisions an HTTP API with a VPC Link private integration to the internal ALB listener. When `enable_internal_alb = true`, the module's outputs flow into the API Gateway block automatically — no manual ARN plumbing.
+
+Configurable settings (all live in `environments/<env>/terraform.tfvars`):
+
+- **Routes** — `http_api_route_keys` defaults to `["ANY /", "ANY /{proxy+}"]`. Add explicit routes like `"POST /orders"`, `"GET /users/{id}"` as services come online.
+- **Authorization** — `http_api_authorization_type` defaults to `AWS_IAM` (SigV4). To switch to JWT, set `http_api_jwt_authorizer` to an object with `name`, `issuer`, `audience`, and optional `identity_sources`; the module auto-flips the effective auth type to `JWT`. JWT requires the IdP's JWKS endpoint to be reachable from API Gateway (standard public IdPs work; private OIDC providers need extra routing).
+- **CORS** — `http_api_cors` accepts `allow_origins`, `allow_methods`, `allow_headers`, `expose_headers`, `allow_credentials`, `max_age`. Default is `null` (CORS disabled). A validation rule rejects `allow_credentials = true` combined with `allow_origins = ["*"]`.
+- **TLS to backend** — `http_api_private_integration_tls_server_name` overrides the SNI name API Gateway sends to the ALB listener when the listener uses HTTPS.
+- **`execute-api` endpoint** — `http_api_disable_execute_api_endpoint` defaults to `false`. Disable after attaching a custom domain.
+
+More detail is in [docs/private-ingress.md](./docs/private-ingress.md).
 
 ## FISMA Posture
 
@@ -129,11 +155,16 @@ Important values to change:
 - `vpc_cidr`
 - `cluster_admin_principal_arns`
 - `cluster_viewer_principal_arns`
+- `enable_internal_alb`, `internal_alb_listener_protocol`, `internal_alb_listener_port`, `internal_alb_certificate_arn` (required for HTTPS), `internal_alb_deletion_protection`
+- `enable_guardduty_agent_addon`, `guardduty_agent_addon_version`, `guardduty_agent_addon_configuration_values`, `additional_eks_addons`
+- `enable_secrets_store_csi_driver_provider_addon`, `secrets_store_csi_driver_provider_addon_version`, `secrets_store_csi_driver_provider_addon_configuration_values`
 - `enable_http_api_gateway`
-- `internal_alb_listener_arn`
-- `internal_alb_security_group_id`
+- `http_api_route_keys`
 - `http_api_authorization_type` or `http_api_jwt_authorizer`
+- `http_api_cors`
 - `tags`
+
+When `enable_internal_alb = true`, the ALB outputs are wired into the API Gateway module automatically. When `false`, supply your own ALB via `internal_alb_listener_arn` and `internal_alb_security_group_id`.
 
 The EKS API endpoint is hard-wired to private-only and cannot be exposed publicly from this module. Reach the cluster from a network path that lands inside the VPC (VPN, Direct Connect, bastion, or a private runner).
 

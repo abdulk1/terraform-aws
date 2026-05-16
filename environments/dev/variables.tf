@@ -66,6 +66,68 @@ variable "enabled_log_types" {
   default     = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 }
 
+variable "enable_guardduty_agent_addon" {
+  description = "Whether to install the Amazon GuardDuty EKS Runtime Monitoring agent as an EKS add-on."
+  type        = bool
+  default     = true
+}
+
+variable "guardduty_agent_addon_version" {
+  description = "Optional pinned version for the aws-guardduty-agent EKS add-on."
+  type        = string
+  default     = null
+}
+
+variable "guardduty_agent_addon_configuration_values" {
+  description = "Optional JSON configuration string for the aws-guardduty-agent EKS add-on."
+  type        = string
+  default     = null
+}
+
+variable "enable_secrets_store_csi_driver_provider_addon" {
+  description = "Whether to install the AWS Secrets Store CSI Driver provider EKS add-on for mounting Secrets Manager and SSM Parameter Store values into pods."
+  type        = bool
+  default     = true
+}
+
+variable "secrets_store_csi_driver_provider_addon_version" {
+  description = "Optional pinned version for the aws-secrets-store-csi-driver-provider EKS add-on."
+  type        = string
+  default     = null
+}
+
+variable "secrets_store_csi_driver_provider_addon_configuration_values" {
+  description = "Optional JSON configuration string for the aws-secrets-store-csi-driver-provider EKS add-on."
+  type        = string
+  default     = null
+}
+
+variable "additional_eks_addons" {
+  description = "Additional EKS add-ons to install. EKS Auto Mode already includes the Pod Identity Agent."
+  type = map(object({
+    name                 = optional(string)
+    before_compute       = optional(bool, false)
+    most_recent          = optional(bool, true)
+    addon_version        = optional(string)
+    configuration_values = optional(string)
+    pod_identity_association = optional(list(object({
+      role_arn        = string
+      service_account = string
+    })))
+    preserve                    = optional(bool, true)
+    resolve_conflicts_on_create = optional(string, "NONE")
+    resolve_conflicts_on_update = optional(string, "OVERWRITE")
+    service_account_role_arn    = optional(string)
+    timeouts = optional(object({
+      create = optional(string)
+      update = optional(string)
+      delete = optional(string)
+    }), {})
+    tags = optional(map(string), {})
+  }))
+  default = {}
+}
+
 variable "cluster_log_retention_days" {
   description = "CloudWatch retention in days for EKS control plane logs."
   type        = number
@@ -199,6 +261,19 @@ variable "http_api_private_integration_tls_server_name" {
   default     = null
 }
 
+variable "http_api_cors" {
+  description = "Optional CORS configuration for the HTTP API. Set to null to disable CORS."
+  type = object({
+    allow_credentials = optional(bool, false)
+    allow_headers     = optional(list(string), [])
+    allow_methods     = optional(list(string), [])
+    allow_origins     = optional(list(string), [])
+    expose_headers    = optional(list(string), [])
+    max_age           = optional(number, 0)
+  })
+  default = null
+}
+
 variable "http_api_access_log_retention_days" {
   description = "CloudWatch retention in days for HTTP API access logs."
   type        = number
@@ -211,20 +286,90 @@ variable "http_api_access_log_kms_key_id" {
   default     = null
 }
 
+variable "enable_internal_alb" {
+  description = "Whether to provision an internal ALB as the ingress in front of EKS workloads. When true, its listener/security group are wired into the API Gateway module."
+  type        = bool
+  default     = false
+}
+
+variable "internal_alb_name" {
+  description = "Optional explicit ALB name. Defaults to name_prefix-internal."
+  type        = string
+  default     = null
+}
+
+variable "internal_alb_listener_protocol" {
+  description = "Listener protocol for the internal ALB. HTTPS requires internal_alb_certificate_arn."
+  type        = string
+  default     = "HTTPS"
+}
+
+variable "internal_alb_certificate_arn" {
+  description = "ACM certificate ARN for the internal ALB HTTPS listener."
+  type        = string
+  default     = null
+}
+
+variable "internal_alb_additional_certificate_arns" {
+  description = "Additional ACM certificate ARNs attached to the internal ALB HTTPS listener for SNI."
+  type        = list(string)
+  default     = []
+}
+
+variable "internal_alb_ssl_policy" {
+  description = "SSL policy for the internal ALB HTTPS listener."
+  type        = string
+  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+}
+
+variable "internal_alb_idle_timeout" {
+  description = "Idle timeout in seconds for the internal ALB."
+  type        = number
+  default     = 60
+}
+
+variable "internal_alb_deletion_protection" {
+  description = "Whether to enable deletion protection on the internal ALB."
+  type        = bool
+  default     = false
+}
+
+variable "internal_alb_ingress_cidr_blocks" {
+  description = "CIDR blocks allowed direct ingress to the internal ALB listener. Leave empty when only in-VPC consumers (API Gateway VPC Link, EKS pods) attach via security groups."
+  type        = list(string)
+  default     = []
+}
+
+variable "internal_alb_ingress_security_group_ids" {
+  description = "Security group IDs granted ingress to the internal ALB listener."
+  type        = list(string)
+  default     = []
+}
+
+variable "internal_alb_access_logs" {
+  description = "Optional S3 access log configuration for the internal ALB."
+  type = object({
+    bucket  = string
+    prefix  = optional(string, null)
+    enabled = optional(bool, true)
+  })
+  default = null
+}
+
 variable "internal_alb_listener_arn" {
-  description = "Listener ARN for the private/internal ALB that receives API Gateway HTTP API traffic."
+  description = "Externally provisioned internal ALB listener ARN. Used only when enable_internal_alb is false."
   type        = string
   default     = null
 }
 
 variable "internal_alb_security_group_id" {
-  description = "Security group ID attached to the private/internal ALB listener."
+  description = "Externally provisioned internal ALB security group ID. Used only when enable_internal_alb is false."
   type        = string
   default     = null
 }
 
 variable "internal_alb_listener_port" {
-  description = "Private/internal ALB listener port used by API Gateway VPC Link."
+  description = "Listener port for the internal ALB."
   type        = number
   default     = 443
 }

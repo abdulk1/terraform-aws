@@ -26,6 +26,7 @@ module "eks" {
     enabled    = true
     node_pools = var.auto_mode_node_pools
   }
+  addons = local.cluster_addons
 
   create_node_iam_role         = true
   enable_auto_mode_custom_tags = true
