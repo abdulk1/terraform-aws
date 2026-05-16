@@ -31,6 +31,30 @@ locals {
     tier = var.control_plane_scaling_tier
   }
 
+  guardduty_agent_addon = var.enable_guardduty_agent_addon ? {
+    aws_guardduty_agent = {
+      name                 = "aws-guardduty-agent"
+      addon_version        = var.guardduty_agent_addon_version
+      configuration_values = var.guardduty_agent_addon_configuration_values
+      most_recent          = true
+    }
+  } : {}
+
+  secrets_store_csi_driver_provider_addon = var.enable_secrets_store_csi_driver_provider_addon ? {
+    aws_secrets_store_csi_driver_provider = {
+      name                 = "aws-secrets-store-csi-driver-provider"
+      addon_version        = var.secrets_store_csi_driver_provider_addon_version
+      configuration_values = var.secrets_store_csi_driver_provider_addon_configuration_values
+      most_recent          = true
+    }
+  } : {}
+
+  cluster_addons = merge(
+    local.guardduty_agent_addon,
+    local.secrets_store_csi_driver_provider_addon,
+    var.additional_eks_addons,
+  )
+
   zonal_shift_config = var.enable_zonal_shift ? {
     enabled = true
   } : null

@@ -113,6 +113,28 @@ variable "http_api_private_integration_tls_server_name" {
   default     = null
 }
 
+variable "http_api_cors" {
+  description = "Optional CORS configuration for the HTTP API. When null, CORS is disabled."
+  type = object({
+    allow_credentials = optional(bool, false)
+    allow_headers     = optional(list(string), [])
+    allow_methods     = optional(list(string), [])
+    allow_origins     = optional(list(string), [])
+    expose_headers    = optional(list(string), [])
+    max_age           = optional(number, 0)
+  })
+  default = null
+
+  validation {
+    condition = (
+      var.http_api_cors == null ||
+      !try(var.http_api_cors.allow_credentials, false) ||
+      !contains(try(var.http_api_cors.allow_origins, []), "*")
+    )
+    error_message = "CORS allow_origins cannot include \"*\" when allow_credentials is true."
+  }
+}
+
 variable "http_api_access_log_retention_days" {
   description = "CloudWatch retention in days for HTTP API access logs."
   type        = number

@@ -9,6 +9,11 @@ This Terraform is configured to support a FISMA-aligned AWS deployment, but Terr
 - EKS control plane audit, API, authenticator, controller manager, and scheduler logs are enabled.
 - Kubernetes secret encryption uses a customer-managed KMS key with rotation enabled.
 - VPC flow logs are enabled.
+- EKS Auto Mode includes the Pod Identity Agent for workload IAM credentials.
+- The GuardDuty runtime monitoring agent is installed as the `aws-guardduty-agent` EKS add-on by default.
+- A `guardduty-data` interface VPC endpoint is created so the GuardDuty agent can operate from fully private subnets.
+- The AWS Secrets Store CSI Driver provider is installed as the `aws-secrets-store-csi-driver-provider` EKS add-on by default.
+- A `secretsmanager` interface VPC endpoint is created so private workloads can retrieve Secrets Manager values without internet egress.
 - Public subnet tagging for internet-facing Kubernetes load balancers is disabled by default.
 - Private ALB ingress is modeled through EKS Auto Mode `IngressClassParams` with `scheme: internal`.
 - API Gateway HTTP API integration uses VPC Link to reach the private ALB listener.
@@ -23,6 +28,8 @@ Implement these at the AWS account, organization, CI/CD, and application layers 
 - Confirm the chosen AWS partition, regions, and services are in the required FedRAMP/FISMA authorization scope for the workload impact level.
 - Use AWS Organizations with SCP guardrails, centralized logging, and separation of duties.
 - Enable organization-level CloudTrail, AWS Config, Security Hub, GuardDuty, Inspector, IAM Access Analyzer, and vulnerability management.
+- Enable GuardDuty Runtime Monitoring at the account or organization level; the EKS add-on alone does not activate the GuardDuty service feature.
+- Create workload-specific Pod Identity associations and least-privilege IAM policies before mounting Secrets Manager secrets in pods.
 - Store Terraform state in an encrypted, versioned S3 bucket with least-privilege access and state locking.
 - Enforce MFA, short-lived credentials, privileged access review, and break-glass procedures.
 - Use approved CI/CD pipelines with change control, code review, signed artifacts where required, and evidence retention.

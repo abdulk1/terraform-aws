@@ -16,15 +16,37 @@ cluster_log_retention_days  = 90
 enable_vpc_flow_logs        = true
 vpc_flow_log_retention_days = 90
 
+# EKS Auto Mode includes the Pod Identity Agent. Install the GuardDuty runtime
+# monitoring agent as an EKS add-on; GuardDuty Runtime Monitoring must also be
+# enabled in the account.
+enable_guardduty_agent_addon               = true
+guardduty_agent_addon_version              = null
+guardduty_agent_addon_configuration_values = null
+
+# AWS Secrets Store CSI Driver provider for mounting Secrets Manager secrets and
+# SSM parameters as pod files. Workloads still need Pod Identity associations
+# granting access to their specific secret ARNs.
+enable_secrets_store_csi_driver_provider_addon               = true
+secrets_store_csi_driver_provider_addon_version              = null
+secrets_store_csi_driver_provider_addon_configuration_values = null
+
 deletion_protection  = false
 upgrade_support_type = "STANDARD"
 enable_zonal_shift   = true
 
-# Enable after the internal EKS Auto Mode ALB listener exists.
+# Internal ALB that fronts EKS workloads. HTTPS-only in test; flip
+# enable_internal_alb to true once internal_alb_certificate_arn is set.
+enable_internal_alb              = false
+internal_alb_listener_protocol   = "HTTPS"
+internal_alb_listener_port       = 443
+internal_alb_certificate_arn     = null
+internal_alb_deletion_protection = false
+
+# External ALB inputs (used only when enable_internal_alb = false).
+internal_alb_listener_arn      = null
+internal_alb_security_group_id = null
+
 enable_http_api_gateway            = false
-internal_alb_listener_arn          = null
-internal_alb_security_group_id     = null
-internal_alb_listener_port         = 443
 http_api_authorization_type        = "AWS_IAM"
 http_api_access_log_retention_days = 90
 

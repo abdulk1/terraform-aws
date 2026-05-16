@@ -59,6 +59,68 @@ variable "enabled_log_types" {
   default     = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 }
 
+variable "enable_guardduty_agent_addon" {
+  description = "Whether to install the Amazon GuardDuty EKS Runtime Monitoring agent as an EKS add-on. GuardDuty Runtime Monitoring must also be enabled in the account."
+  type        = bool
+  default     = true
+}
+
+variable "guardduty_agent_addon_version" {
+  description = "Optional pinned version for the aws-guardduty-agent EKS add-on. Defaults to the most recent compatible version."
+  type        = string
+  default     = null
+}
+
+variable "guardduty_agent_addon_configuration_values" {
+  description = "Optional JSON configuration string for the aws-guardduty-agent EKS add-on."
+  type        = string
+  default     = null
+}
+
+variable "enable_secrets_store_csi_driver_provider_addon" {
+  description = "Whether to install the AWS Secrets Store CSI Driver provider EKS add-on for mounting Secrets Manager and SSM Parameter Store values into pods."
+  type        = bool
+  default     = true
+}
+
+variable "secrets_store_csi_driver_provider_addon_version" {
+  description = "Optional pinned version for the aws-secrets-store-csi-driver-provider EKS add-on. Defaults to the most recent compatible version."
+  type        = string
+  default     = null
+}
+
+variable "secrets_store_csi_driver_provider_addon_configuration_values" {
+  description = "Optional JSON configuration string for the aws-secrets-store-csi-driver-provider EKS add-on."
+  type        = string
+  default     = null
+}
+
+variable "additional_eks_addons" {
+  description = "Additional EKS add-ons to install. EKS Auto Mode already includes the Pod Identity Agent, so do not add eks-pod-identity-agent here unless non-Auto-Mode compute is introduced."
+  type = map(object({
+    name                 = optional(string)
+    before_compute       = optional(bool, false)
+    most_recent          = optional(bool, true)
+    addon_version        = optional(string)
+    configuration_values = optional(string)
+    pod_identity_association = optional(list(object({
+      role_arn        = string
+      service_account = string
+    })))
+    preserve                    = optional(bool, true)
+    resolve_conflicts_on_create = optional(string, "NONE")
+    resolve_conflicts_on_update = optional(string, "OVERWRITE")
+    service_account_role_arn    = optional(string)
+    timeouts = optional(object({
+      create = optional(string)
+      update = optional(string)
+      delete = optional(string)
+    }), {})
+    tags = optional(map(string), {})
+  }))
+  default = {}
+}
+
 variable "cluster_log_retention_days" {
   description = "CloudWatch retention in days for EKS control plane logs."
   type        = number

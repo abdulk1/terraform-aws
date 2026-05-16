@@ -16,17 +16,65 @@ cluster_log_retention_days  = 30
 enable_vpc_flow_logs        = true
 vpc_flow_log_retention_days = 30
 
+# EKS Auto Mode includes the Pod Identity Agent. Install the GuardDuty runtime
+# monitoring agent as an EKS add-on; GuardDuty Runtime Monitoring must also be
+# enabled in the account.
+enable_guardduty_agent_addon               = true
+guardduty_agent_addon_version              = null
+guardduty_agent_addon_configuration_values = null
+
+# AWS Secrets Store CSI Driver provider for mounting Secrets Manager secrets and
+# SSM parameters as pod files. Workloads still need Pod Identity associations
+# granting access to their specific secret ARNs.
+enable_secrets_store_csi_driver_provider_addon               = true
+secrets_store_csi_driver_provider_addon_version              = null
+secrets_store_csi_driver_provider_addon_configuration_values = null
+
 deletion_protection  = false
 upgrade_support_type = "STANDARD"
 enable_zonal_shift   = true
 
-# Enable after the internal EKS Auto Mode ALB listener exists.
-enable_http_api_gateway            = false
-internal_alb_listener_arn          = null
-internal_alb_security_group_id     = null
-internal_alb_listener_port         = 443
-http_api_authorization_type        = "AWS_IAM"
+# Internal ALB that fronts EKS workloads. Defaults to HTTP on 80 for dev so it
+# stands up without an ACM cert. Switch to HTTPS once a cert is available.
+enable_internal_alb              = true
+internal_alb_listener_protocol   = "HTTP"
+internal_alb_listener_port       = 80
+internal_alb_certificate_arn     = null
+internal_alb_deletion_protection = false
+
+# External ALB inputs (used only when enable_internal_alb = false).
+internal_alb_listener_arn      = null
+internal_alb_security_group_id = null
+
+enable_http_api_gateway            = true
 http_api_access_log_retention_days = 30
+
+# Routes forwarded to the internal ALB. Each entry is "<METHOD> <PATH>".
+http_api_route_keys = [
+  "GET /{proxy+}",
+  "POST /{proxy+}",
+]
+
+# JWT authorizer. Off until a real IdP is wired up — falls back to AWS_IAM auth.
+# To turn on: uncomment and fill issuer/audience (Cognito user pool URL, Okta
+# issuer, Auth0 tenant, etc.). Setting the object auto-flips auth type to JWT.
+http_api_authorization_type = "AWS_IAM"
+# http_api_jwt_authorizer = {
+#   name             = "platform-jwt"
+#   issuer           = "https://REPLACE-ME.example.com/oauth2/default"
+#   audience         = ["hive-mvp-dev"]
+#   identity_sources = ["$request.header.Authorization"]
+# }
+
+# CORS. allow_credentials = true requires explicit origins (no "*").
+http_api_cors = {
+  allow_credentials = true
+  allow_origins     = ["https://app.dev.example.com"]
+  allow_methods     = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  allow_headers     = ["Authorization", "Content-Type", "X-Requested-With"]
+  expose_headers    = ["X-Request-Id"]
+  max_age           = 600
+}
 
 # EKS-managed Argo CD capability. Requires an IAM Identity Center instance
 # and at least one ADMIN rbac mapping. See README "Argo CD" section.

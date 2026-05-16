@@ -16,9 +16,11 @@ locals {
     "eks-auth",
     "elasticloadbalancing",
     "autoscaling",
+    "guardduty-data",
     "sts",
     "kms",
     "logs",
+    "secretsmanager",
     "ssm",
     "ssmmessages",
   ]

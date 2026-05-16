@@ -34,6 +34,11 @@ output "oidc_provider_arn" {
   value       = module.eks.oidc_provider_arn
 }
 
+output "cluster_addons" {
+  description = "EKS add-ons managed by Terraform."
+  value       = module.eks.cluster_addons
+}
+
 output "vpc_id" {
   description = "VPC ID."
   value       = module.network.vpc_id
@@ -47,6 +52,31 @@ output "private_subnet_ids" {
 output "vpc_endpoint_security_group_id" {
   description = "Security group attached to AWS service interface endpoints."
   value       = module.network.vpc_endpoint_security_group_id
+}
+
+output "internal_alb_arn" {
+  description = "Internal ALB ARN when provisioned by this stack."
+  value       = try(module.internal_alb[0].alb_arn, null)
+}
+
+output "internal_alb_dns_name" {
+  description = "Internal ALB DNS name."
+  value       = try(module.internal_alb[0].alb_dns_name, null)
+}
+
+output "internal_alb_zone_id" {
+  description = "Internal ALB Route 53 zone ID for alias records."
+  value       = try(module.internal_alb[0].alb_zone_id, null)
+}
+
+output "internal_alb_listener_arn" {
+  description = "Internal ALB default listener ARN."
+  value       = try(module.internal_alb[0].listener_arn, null)
+}
+
+output "internal_alb_security_group_id" {
+  description = "Internal ALB security group ID. Attach EKS workload security groups and TargetGroupBinding controllers to this."
+  value       = try(module.internal_alb[0].security_group_id, null)
 }
 
 output "http_api_endpoint" {
