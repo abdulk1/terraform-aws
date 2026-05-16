@@ -19,6 +19,7 @@ It creates:
 - An internal Application Load Balancer provisioned alongside EKS as the standing ingress, with a 404 fixed-response default listener that workloads attach to via `TargetGroupBinding` (HTTP or HTTPS, configurable per environment).
 - Optional API Gateway HTTP API with VPC Link private integration to the internal ALB, supporting route keys, JWT or AWS_IAM authorization, and CORS.
 - Optional CloudFront + private S3 distribution for hosting a React single-page application UI, with Origin Access Control, SPA routing rewrites, and a custom cache policy.
+- Two ECR repositories (`<name>/base` and `<name>/app/nonprod`) plus a managed IAM policy that lets account principals create, push, and pull on any nested repository under those prefixes.
 - IRSA OIDC provider for workloads that still use IAM roles for service accounts.
 
 ## Repository Layout
@@ -38,6 +39,7 @@ It creates:
 │   ├── internal-alb/
 │   ├── api-gateway/
 │   ├── cloudfront-spa/
+│   ├── ecr/
 │   └── argocd-capability/
 ├── Makefile
 └── README.md
@@ -142,6 +144,26 @@ aws cloudfront create-invalidation \
   --distribution-id $(terraform -chdir=environments/dev output -raw cloudfront_spa_distribution_id) \
   --paths "/*"
 ```
+
+## Container Image Registry (ECR)
+
+The [`ecr`](./modules/ecr) module provisions two ECR repositories and the IAM scaffolding to share them across the account. Anyone in the same AWS account who is granted the generated managed policy can create, push, and pull repositories under either prefix without further per-repo IAM changes.
+
+What the module creates:
+
+- Two root repositories: `<name_prefix>/base` and `<name_prefix>/app/nonprod`.
+- Two `aws_ecr_repository_creation_template` entries (one per prefix, `applied_for = ["PULL_THROUGH_CACHE", "REPLICATION"]`) so any nested repository AWS auto-creates under those prefixes inherits the same encryption, tag mutability, lifecycle policy, and tags.
+- A default lifecycle policy on each repository: expire untagged images after 14 days and keep the most recent 100 images. Override with `lifecycle_policy_json` or disable with `lifecycle_policy_enabled = false`.
+- AES256 encryption by default; set `encryption_type = "KMS"` and `kms_key_arn` to use a customer-managed key.
+- `MUTABLE` tags by default (switch to `IMMUTABLE` for tighter supply-chain controls).
+- A managed IAM policy `<name_prefix>-ecr-push-pull` scoped to:
+  - The two root repository ARNs.
+  - Wildcard ARNs `repository/<name_prefix>/base/*` and `repository/<name_prefix>/app/nonprod/*` so nested pushes (e.g. `<name_prefix>/base/python`, `<name_prefix>/app/nonprod/api`) are covered.
+  - `ecr:GetAuthorizationToken` on `*` (registry-level; cannot be scoped).
+
+Caveat: ECR repository creation templates only apply to AWS-initiated repository creation (pull-through cache rules, replication). Manual `aws ecr create-repository` or CI/CD-driven creation does **not** inherit the template defaults, so pipelines that pre-create nested repos should set scan-on-push, encryption, and lifecycle settings themselves (or attach a lifecycle policy as a follow-up step).
+
+Outputs: `repository_names`, `repository_arns`, `repository_urls`, `root_repository_arns`, `scoped_repository_arns`, `push_pull_policy_arn`, `push_pull_policy_json`. Attach `push_pull_policy_arn` to any IAM role or user that needs access. The `root_repository_arns` output is shaped to drop directly into `argocd_ecr_repository_arns` when Argo CD needs to pull from these repositories.
 
 ## FISMA Posture
 
