@@ -109,6 +109,37 @@ module "api_gateway" {
   tags = local.default_tags
 }
 
+module "cloudfront_spa" {
+  count  = var.enable_cloudfront_spa ? 1 : 0
+  source = "../../modules/cloudfront-spa"
+
+  name_prefix = local.name_prefix
+
+  bucket_name              = var.cloudfront_spa_bucket_name
+  comment                  = var.cloudfront_spa_comment
+  default_root_object      = var.cloudfront_spa_default_root_object
+  aliases                  = var.cloudfront_spa_aliases
+  acm_certificate_arn      = var.cloudfront_spa_acm_certificate_arn
+  minimum_protocol_version = var.cloudfront_spa_minimum_protocol_version
+  price_class              = var.cloudfront_spa_price_class
+  http_version             = var.cloudfront_spa_http_version
+  ipv6_enabled             = var.cloudfront_spa_ipv6_enabled
+  web_acl_id               = var.cloudfront_spa_web_acl_id
+
+  spa_error_responses       = var.cloudfront_spa_error_responses
+  spa_error_caching_min_ttl = var.cloudfront_spa_error_caching_min_ttl
+
+  versioning_enabled = var.cloudfront_spa_versioning_enabled
+  kms_key_arn        = var.cloudfront_spa_kms_key_arn
+  force_destroy      = var.cloudfront_spa_force_destroy
+
+  geo_restriction = var.cloudfront_spa_geo_restriction
+  logging         = var.cloudfront_spa_logging
+  cache_policy    = var.cloudfront_spa_cache_policy
+
+  tags = local.default_tags
+}
+
 module "argocd_capability" {
   count  = var.enable_argocd_capability ? 1 : 0
   source = "../../modules/argocd-capability"
